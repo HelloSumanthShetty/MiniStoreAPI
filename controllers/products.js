@@ -94,7 +94,7 @@ const deletes=async(req,res)=>{
     
 
    const maincontrol=async(req,res)=>{
-    const{featured,company,name,sorting,field}=req.query;
+    const{featured,company,name,sorting,field,numericfilter}=req.query;
     const queryarray={}
     if(featured){
         //mongodb featured is stored as string
@@ -107,16 +107,49 @@ const deletes=async(req,res)=>{
         queryarray.name={$regex:name , $options: 'i'}
  
     }
+    if (numericfilter) {
+        const operations = {
+            '>': '$gt',
+            '>=': '$gte',
+            '=': '$eq',
+            '<': '$lt',
+            '<=': '$lte'
+        };
+        const regEX = /\b(>|>=|=|<|<=)\b/g;
+
+        let filter = numericfilter.replace(regEX, (match) => {
+            return `-${operations[match]}-`;
+        });
+
+        const options = ["price", "rating"]; // fields allowed to do numeric filters on
+
+        filter.split(',').forEach((item) => {
+            const [field, operator, value] = item.split('-');
+            if (options.includes(field)) {
+                if (!queryarray[field]) {
+                    queryarray[field] = {};
+                }
+                queryarray[field][operator] = Number(value);
+            }
+        });
+    }
+
    
     let query= API.find(queryarray)
     if(sorting){
         const sorted=sorting.split(',').join(' ')
         query=query.sort(sorted)
-    }
+    } 
     if(field){
         const fields=field.split(',').join(' ')
         query=query.select(fields)
     }
+    const page=Number(req.query.page) || 1
+    const limit =Number(req.query.limit) ||10 
+    const skip=(page-1)*limit
+
+
+      query=query.skip(skip).limit(limit)
     const total = await API.countDocuments(queryarray);
     const results =  await query;
   
